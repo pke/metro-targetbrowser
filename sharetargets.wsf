@@ -1,0 +1,75 @@
+<package>
+  <job id="js">
+    <?job debug=false?>
+    <script language="JScript">
+      function getTargets(folder) {
+        manifest = WScript.createObject("Msxml2.DOMDocument.6.0");
+        manifest.async = false;
+        manifest.load(folder + "\\" + "AppxManifest.xml");
+        // cannot query default namespace so we have to define our own
+        manifest.setProperty("SelectionNamespaces", "xmlns:appx='http://schemas.microsoft.com/appx/2010/manifest'");
+        targets = manifest.selectNodes("//appx:ShareTarget");
+        results = []
+        for (var target=targets.nextNode(); target; target = targets.nextNode()) {
+          result = {
+            app: {
+              id: target.selectSingleNode("../../../@Id").text,
+              version: target.selectSingleNode("//appx:Identity/@Version").text
+            },
+
+            formats: [],
+
+            inspect: function() {
+              result = "";
+              result += this.app.id + "(" + this.app.version + "):\nFormats: " + this.formats.join(",");
+              if (this.fileTypes) {
+                result += "\nFiles: " + this.fileTypes;
+              }
+              result += "\n";
+              return result;
+            }
+          };
+
+          fileTypes = target.selectNodes("appx:SupportedFileTypes");
+          if (fileTypes.length) {
+            if (fileTypes[0].selectSingleNode("appx:SupportsAnyFileType")) {
+              result.fileTypes = "*";
+            } else {
+              result.fileTypes = {}
+              for (var fileType = fileTypes.nextNode(); fileType; fileType = fileTypes.nextNode()) {
+                //result.fileTypes.push();
+              }
+            }
+          }
+
+          formats = target.selectNodes("appx:DataFormat");
+          for (var format = formats.nextNode(); format; format = formats.nextNode()) {
+            result.formats.push(format.text);
+          }
+
+          results.push(result);
+        }
+
+        return results;
+      }
+
+      if (WScript.Arguments.Named.Exists("elevated") === false) {
+        WScript.createObject("Shell.Application").shellExecute("cscript.exe", "\"" + WScript.ScriptFullName + "\" /elevated", "", "runas", 1);
+        WScript.Quit();
+      } else {        
+        var fso = WScript.createObject("Scripting.FileSystemObject");
+        programsFolder = fso.getFolder("C:\\Program Files\\WindowsApps");
+        folders = new Enumerator(programsFolder.subFolders);
+        for (; !folders.atEnd(); folders.moveNext()) {
+          folder = folders.item();
+          if (folder.name === "Deleted") continue;
+          targets = getTargets(folder.path);
+          for (var i=0, len=targets.length;i<len;i++) {
+            var target = targets[i];
+            WScript.echo(target.inspect());
+          }
+        }
+      }
+    </script>
+ </job>
+</package>
